@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoadGuard ZW — Validator Portal</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="login-wrap">
+  <form class="login-card" onsubmit="doLogin(event)">
+    <div class="brand-badge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.4 8.7-8 11-4.6-2.3-8-6-8-11V5l8-3z"/></svg></div>
+    <h1>RoadGuard <span>ZW</span> Validator Portal</h1>
+    <p>Authorised validators and administrators only.</p>
+    <div class="err" id="loginErr"></div>
+    <label for="lu">Username</label><input id="lu" autocomplete="username" required>
+    <label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password" required>
+    <button class="btn-main" type="submit">Sign in</button>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-badge"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.4 8.7-8 11-4.6-2.3-8-6-8-11V5l8-3z"/></svg></div>
+    <div><div class="brand-name">RoadGuard <span>ZW</span></div><div class="brand-tag">Safer roads. Stronger communities.</div></div>
+  </div>
+  <nav>
+    <a href="#validator" data-page="validator">Validator</a>
+    <a href="#analytics" data-page="analytics">Road analytic report</a>
+    <a href="#alerts" data-page="alerts">Alerts</a>
+    <a href="#facilities" data-page="facilities">Emergency facilities</a>
+    <a href="#admin" data-page="admin" id="navAdmin" class="hidden">Admin</a>
+  </nav>
+  <div class="live" id="live"><span class="dot"></span><span id="liveLbl">Connecting…</span></div>
+  <div class="who"><span id="whoName"></span><button class="link" onclick="doLogout()">Sign out</button></div>
+  <button class="bell" id="bell" aria-label="Notifications" onclick="toggleFeed()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+    <span class="badge hidden" id="bellN">0</span>
+  </button>
+  <div class="feed hidden" id="feed"><div class="feed-h">Live activity <button class="link" onclick="clearFeed()">Clear</button></div><div id="feedList"></div></div>
+</header>
+
+<main>
+<!-- ================= VALIDATOR PAGE ================= -->
+<section id="page-validator" class="page">
+  <div class="sos-panel">
+    <div class="sos-head"><span>Emergency SOS</span><span class="count-chip" id="sosCount">0 pending</span></div>
+    <div class="sos-filters" id="sosFilters"></div>
+    <div class="sos-body" id="sosList"></div>
+  </div>
+
+  <div class="lower">
+    <div class="map-card">
+      <div id="vmap"></div>
+      <div class="map-foot"><span>Tap a marker or report to inspect it. Pan and zoom to explore.</span><span>Leaflet | © OpenStreetMap contributors</span></div>
+    </div>
+    <div class="inc-card">
+      <div class="inc-head"><h2>Incident reports</h2><span class="count-chip" id="incCount"></span></div>
+      <div class="tabs" id="incTabs"></div>
+      <div class="inc-list" id="incList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ANALYTICS PAGE ================= -->
+<section id="page-analytics" class="page hidden">
+  <div class="cards" id="sumCards"></div>
+  <div class="filters">
+    <label>From<input type="date" id="aFrom"></label>
+    <label>To<input type="date" id="aTo"></label>
+    <label>Town<input type="text" id="aTown" placeholder="e.g. Norton"></label>
+    <label>Province<select id="aProv"><option value="">All</option></select></label>
+    <label>Category<select id="aCat"><option value="">All</option><option value="accident">Accident</option><option value="hazard">Hazard</option><option value="medical">Medical</option><option value="fire_rescue">Fire/rescue</option><option value="other">Other</option></select></label>
+    <label>Status<select id="aStat"><option value="">All</option><option>PENDING REVIEW</option><option>APPROVED</option><option>DECLINED</option><option>ARCHIVED</option></select></label>
+    <button class="btn-ghost" onclick="resetFilters()">Reset</button>
+  </div>
+  <div class="chart-card bar-card">
+    <div class="chart-title">Incident totals by category <small id="barSub"></small></div>
+    <div id="barChart"></div>
+  </div>
+  <div class="chart-card line-card">
+    <div class="chart-title">Incident trend over time <small>reports submitted per day</small></div>
+    <div class="series-pick" id="seriesPick"></div>
+    <div id="lineChart"></div>
+  </div>
+  <p class="foot-note">Analytics are computed from the shared database. Submitted counts every report; Approved, Pending and Declined are counted separately. Emergency SOS requests and active alerts are separate records and never added to incident totals. Province filter on SOS counts only SOS requests that carry a province.</p>
+</section>
+
+<!-- ================= ALERTS PAGE ================= -->
+<section id="page-alerts" class="page hidden">
+  <div class="panel"><div class="panel-h"><h2>Published public alerts</h2><button class="btn-main sm" onclick="openAlert({})">+ New alert</button></div><div id="alertsTable"></div></div>
+  <div class="panel"><div class="panel-h"><h2>Validation history</h2></div><div id="historyTable"></div></div>
+</section>
+
+<!-- ================= FACILITIES PAGE ================= -->
+<section id="page-facilities" class="page hidden">
+  <div class="panel"><div class="panel-h"><h2>Emergency Stations &amp; Hospitals</h2><span class="count-chip">Verified directory</span></div><p class="muted">Only verified facilities are published to the public directory and may be assigned to SOS requests. Do not enter unverified contact numbers.</p><div class="filters"><label>Search facility / town / highway<input id="facilitySearch" placeholder="Search facilities"></label><label>Readiness<select id="facilityReadiness"><option value="">All readiness</option><option>ACTIVE STANDBY</option><option>OFF STANDBY</option></select></label><label>Type<select id="facilityTypeFilter"><option value="">All types</option><option value="hospital">Hospitals</option><option value="fire_rescue">Fire &amp; Rescue</option><option value="zrp_patrol">ZRP Patrol</option><option value="civil_protection">Civil Protection</option></select></label></div><div id="facilitiesTable"></div></div>
+  <div class="panel" id="facilityCreatePanel"><div class="panel-h"><h2>Add emergency facility</h2></div>
+    <form id="facilityForm" class="addu" onsubmit="createFacility(event)">
+      <input id="facName" placeholder="Facility name" required><input id="facId" placeholder="Facility ID (optional)">
+      <select id="facType"><option value="hospital">Hospital</option><option value="fire_rescue">Fire &amp; Rescue</option><option value="zrp_patrol">ZRP Patrol</option><option value="civil_protection">Civil Protection</option></select>
+      <input id="facAddress" placeholder="Verified address" required><input id="facTown" placeholder="Town" required><input id="facProvince" placeholder="Province">
+      <input id="facRoad" placeholder="Road / corridor"><input id="facLat" placeholder="Latitude"><input id="facLng" placeholder="Longitude">
+      <input id="facPhone" placeholder="Main telephone"><input id="facEmergency" placeholder="Emergency department number"><input id="facAmbulance" placeholder="Ambulance contact">
+      <input id="facAlt" placeholder="Alternative telephone"><input id="facEquipment" placeholder="Equipment / capability">
+      <label><input id="facVerified" type="checkbox"> I have verified this facility information and contacts</label>
+      <button class="btn-main sm" type="submit">Save facility</button>
+    </form><div class="err" id="facilityErr"></div>
+  </div>
+</section>
+
+<!-- ================= ADMIN PAGE ================= -->
+<section id="page-admin" class="page hidden">
+  <div class="panel"><div class="panel-h"><h2>Validator accounts</h2></div>
+    <div id="usersTable"></div>
+    <form class="addu" onsubmit="addUser(event)">
+      <input id="nuName" placeholder="Full name" required><input id="nuUser" placeholder="username" required>
+      <input id="nuPass" type="password" placeholder="password (10+ chars)" minlength="10" required>
+      <select id="nuRole"><option value="validator">Validator</option><option value="admin">Admin</option></select>
+      <button class="btn-main sm" type="submit">Add user</button></form>
+    <div class="err" id="userErr"></div>
+  </div>
+  <div class="panel"><div class="panel-h"><h2>Audit log</h2></div><div id="auditTable"></div></div>
+</section>
+</main>
+</div>
+
+<div id="toasts"></div>
+
+<!-- decline modal -->
+<div class="overlay" id="declineOv"><div class="modal">
+  <h3 id="declineTitle">Decline</h3><p class="muted" id="declineSub"></p>
+  <div class="err" id="declineErr"></div>
+  <label>Reason (sent to the reporter and recorded)</label><textarea id="declineReason" maxlength="500" placeholder="e.g. Duplicate of RGZ-2026-… / cannot be verified"></textarea>
+  <div class="m-actions"><button class="btn-ghost" onclick="closeModal('declineOv')">Cancel</button><button class="btn-red" onclick="confirmDecline()">Decline</button></div>
+</div></div>
+
+<!-- alert modal -->
+<div class="overlay" id="alertOv"><div class="modal wide">
+  <h3>Publish public alert</h3><p class="muted">This is saved to the database and pushed instantly to every visitor on the public website. It does not change the report's approval status.</p>
+  <div class="err" id="alertErr"></div>
+  <label>Alert title</label><input id="al-title" maxlength="140">
+  <label>Description</label><textarea id="al-desc" maxlength="1000"></textarea>
+  <div class="two"><div><label>Severity</label><select id="al-sev"><option value="info">Information</option><option value="warning" selected>Warning</option><option value="critical">Critical</option></select></div>
+  <div><label>Category</label><select id="al-cat"><option value="accident">Accident</option><option value="hazard">Hazard</option><option value="medical">Medical</option><option value="fire_rescue">Fire/rescue</option><option value="other">Other</option></select></div></div>
+  <label>Affected road or location</label><input id="al-loc" maxlength="200">
+  <div class="two"><div><label>Expires after</label><select id="al-exp"><option value="">No expiry</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="720">12 hours</option><option value="1440" selected>24 hours</option><option value="10080">7 days</option></select></div>
+  <div><label>Related reference</label><input id="al-ref" readonly placeholder="none (standalone)"></div></div>
+  <button class="btn-ghost sm" type="button" onclick="queryWitnessesFromAlert()">Query nearby witnesses for this incident</button>
+  <div class="m-actions"><button class="btn-ghost" onclick="closeModal('alertOv')">Cancel</button><button class="btn-main" id="alertSend" onclick="sendAlert()">Publish alert</button></div>
+</div></div>
+
+<!-- history modal -->
+<div class="overlay" id="histOv"><div class="modal wide"><h3 id="histTitle">History</h3><div id="histBody"></div><div class="m-actions"><button class="btn-ghost" onclick="closeModal('histOv')">Close</button></div></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="app.js"></script>
+
+<script>
+(function(){
+ const labels={
+  en:{'Validator':'Validator','Alerts':'Alerts','Incident reports':'Incident reports','Emergency SOS':'Emergency SOS','Sign out':'Sign out','Read aloud':'Read aloud'},
+  sn:{'Validator':'Muchengeti','Alerts':'Yambiro','Incident reports':'Mishumo yezviitiko','Emergency SOS':'Rubatsiro rwechimbichimbi','Sign out':'Buda','Read aloud':'Verenga zvinonzwika'},
+  nd:{'Validator':'Umhloli','Alerts':'Izixwayiso','Incident reports':'Imibiko yezigameko','Emergency SOS':'Usizo oluphuthumayo','Sign out':'Phuma','Read aloud':'Bala kuzwakala'}
+ };
+ let lang=localStorage.getItem('rg_lang')||'en';
+ function apply(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{let k=el.dataset.i18n;if(labels[lang][k])el.textContent=labels[lang][k]});
+  const extras={sn:{'Safer roads. Stronger communities.':'Migwagwa yakachengeteka, nharaunda dzakasimba.','Published public alerts':'Yambiro dzakaburitswa','Validation history':'Nhoroondo yekuongorora','Emergency Stations & Hospitals':'Nzvimbo dzechimbichimbi nezvipatara','Road analytic report':'Chirevo chekuongorora migwagwa'},nd:{'Safer roads. Stronger communities.':'Imigwa ephephile, imiphakathi eqinileyo.','Published public alerts':'Izixwayiso ezikhutshiweyo','Validation history':'Umlando wokuqinisekisa','Emergency Stations & Hospitals':'Iziteshi zezimo eziphuthumayo lezibhedlela','Road analytic report':'Umbiko wokuhlaziya imigwaqo'}};
+  if(lang!=='en'){const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode()){const key=n.nodeValue.trim();if(extras[lang][key])n.nodeValue=n.nodeValue.replace(key,extras[lang][key]);}}
+  document.documentElement.lang=lang;
+ }
+ function toolbar(){
+  const host=document.querySelector('.topbar nav')||document.querySelector('header');if(!host)return;
+  const wrap=document.createElement('span');wrap.className='rg-access-tools';
+  wrap.innerHTML='<select id="rgLang" aria-label="Language" class="rg-language"><option value="en">English</option><option value="sn">Shona</option><option value="nd">Ndebele</option></select><button id="rgSpeak" type="button" class="rg-read-aloud">🔊 Read aloud</button>';
+  host.appendChild(wrap);const sel=wrap.querySelector('select');sel.value=lang;sel.onchange=()=>{lang=sel.value;localStorage.setItem('rg_lang',lang);location.reload();};
+  wrap.querySelector('button').onclick=()=>{if(!('speechSynthesis'in window))return alert('Audio read-aloud is not supported by this browser.');if(speechSynthesis.speaking){speechSynthesis.cancel();return;}const u=new SpeechSynthesisUtterance((document.querySelector('main')?.innerText||document.body.innerText).slice(0,12000));u.lang=lang==='sn'?'sn-ZW':lang==='nd'?'nd-ZW':'en-ZW';speechSynthesis.speak(u);};
+ }
+ document.addEventListener('DOMContentLoaded',()=>{toolbar();apply();});
+})();
+</script>
+
+</body>
+</html>
